@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101a38">
+<title>Balap Tikungan - Three.js</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --hud: #ffffff;
+    --accent: #ffd23f;
+    --danger: #ff4d4d;
+    --go: #3ef08f;
+    --panel: rgba(12, 20, 40, 0.55);
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #87b7e8; font-family: 'Russo One', 'Arial Black', system-ui, sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
+  canvas { display: block; position: fixed; inset: 0; }
+
+  /* ===================== INTRO (loading + judul) ===================== */
+  #intro { position: fixed; inset: 0; z-index: 50; }
+
+  /* corak bendera finis (dipakai beberapa elemen) */
+  .checker-f, .door::after {
+    background-color: #131b38;
+    background-image:
+      linear-gradient(45deg, #e8ecf4 25%, transparent 25%, transparent 75%, #e8ecf4 75%),
+      linear-gradient(45deg, #e8ecf4 25%, transparent 25%, transparent 75%, #e8ecf4 75%);
+    background-position: 0 0, 12px 12px;
+    background-size: 24px 24px;
+  }
+
+  /* --- layar loading --- */
+  #load { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(120% 120% at 50% 32%, #1d2b53 0%, #14204a 52%, #0a1128 100%); color: #fff; transition: opacity .65s ease; }
+  #load.hide { opacity: 0; pointer-events: none; }
+  .ld-logo { width: 86px; height: 86px; margin-bottom: 18px; filter: drop-shadow(0 6px 14px rgba(0,0,0,.45)); animation: ldFloat 1.9s ease-in-out infinite; }
+  @keyframes ldFloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
+  .ld-name { font-size: 21px; letter-spacing: .32em; padding-left: .32em; }
+  .ld-sub { font-size: 12px; opacity: .72; margin-top: 7px; letter-spacing: .1em; }
+  .ld-sub b { color: var(--accent); font-weight: normal; }
+  .ld-label { margin-top: 36px; font-size: 11px; letter-spacing: .18em; opacity: .6; text-transform: uppercase; min-height: 14px; }
+  .ld-bar { width: min(430px, 72vw); height: 6px; margin-top: 10px; background: rgba(255,255,255,.14); border-radius: 3px; overflow: hidden; }
+  .ld-fill { height: 100%; width: 0%; border-radius: 3px; background: linear-gradient(90deg, var(--go), var(--accent)); box-shadow: 0 0 12px rgba(255,210,63,.6); }
+  .ld-row { width: min(430px, 72vw); display: flex; justify-content: space-between; gap: 14px; margin-top: 12px; font-size: 11px; opacity: .85; letter-spacing: .04em; }
+  #ldTip { transition: opacity .3s ease; }
+  .ld-checker { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; opacity: .9;
+    background-size: 20px 20px; background-position: 0 0, 10px 10px; }
+
+  /* --- layar judul --- */
+  #title { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    background:
+      radial-gradient(120% 95% at 50% 42%, rgba(8,12,26,0) 42%, rgba(8,12,26,.38) 100%),
+      linear-gradient(180deg, rgba(8,12,26,.58) 0%, rgba(8,12,26,0) 32%, rgba(8,12,26,0) 58%, rgba(8,12,26,.64) 100%); }
+  .t-top { display: flex; flex-direction: column; align-items: center; text-align: center; transform: translateY(-7vh); padding: 0 16px; }
+  .t-presents { font-size: clamp(9px, 2.4vw, 12px); letter-spacing: .34em; padding-left: .34em; color: rgba(255,255,255,.88); text-shadow: 0 1px 3px rgba(0,0,0,.55); margin-bottom: 22px; }
+  .t-kicker { font-size: clamp(18px, 4.6vw, 30px); letter-spacing: .6em; padding-left: .6em; color: var(--accent); text-shadow: 0 2px 0 rgba(10,15,35,.4); }
+  .t-main { font-size: clamp(46px, 12vw, 104px); line-height: 1.05; color: #fff; letter-spacing: .02em;
+    text-shadow: 0 4px 0 #16224a, 0 9px 0 rgba(10,15,35,.32), 0 18px 34px rgba(10,15,35,.5); }
+  .t-main-in { display: inline-block; animation: tFloat 4.6s ease-in-out infinite; }
+  @keyframes tFloat { 0%,100% { transform: skewX(-7deg) translateY(0) } 50% { transform: skewX(-7deg) translateY(-5px) } }
+  .t-flagline { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  .t-flagline .ck { display: inline-block; width: 58px; height: 12px; border-radius: 2px; opacity: .92;
+    background-size: 24px 24px; background-position: 0 0, 12px 12px; }
+  .t-flagline .bar { display: inline-block; width: min(190px, 26vw); height: 3px; border-radius: 2px; background: var(--accent); }
+  .t-tag { margin-top: 18px; font-size: 12px; letter-spacing: .05em; max-width: 86vw; color: rgba(255,255,255,.88); text-shadow: 0 1px 3px rgba(0,0,0,.55); }
+  .t-bottom { position: absolute; left: 0; right: 0; bottom: calc(10vh + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; }
+  .t-press { font-size: clamp(15px, 3.4vw, 19px); color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,.6); animation: blink 1.7s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  .key { display: inline-block; margin: 0 6px; padding: 2px 12px 3px; border: 2px solid rgba(255,255,255,.55); border-bottom-width: 4px; border-radius: 8px; background: rgba(12,20,40,.5); }
+  .t-corner { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); font-size: 11px; letter-spacing: .08em; color: rgba(255,255,255,.72); text-shadow: 0 1px 2px rgba(0,0,0,.45); }
+  .t-corner.tl { left: 16px; } .t-corner.tr { right: 16px; }
+
+  /* animasi masuk & keluar layar judul */
+  #title .t-top > *, #title .t-bottom, #title .t-corner { opacity: 0; transform: translateY(18px); transition: opacity .8s ease, transform .8s ease; }
+  #title.show .t-top > *, #title.show .t-bottom, #title.show .t-corner { opacity: 1; transform: none; }
+  #title.show .t-top > :nth-child(1) { transition-delay: .05s }
+  #title.show .t-top > :nth-child(2) { transition-delay: .15s }
+  #title.show .t-top > :nth-child(3) { transition-delay: .25s }
+  #title.show .t-top > :nth-child(4) { transition-delay: .4s }
+  #title.show .t-top > :nth-child(5) { transition-delay: .5s }
+  #title.show .t-bottom { transition-delay: .7s }
+  #title.show .t-corner { transition-delay: .85s }
+  #title.leave .t-top > *, #title.leave .t-bottom, #title.leave .t-corner {
+    opacity: 0 !important; transform: translateY(-14px) !important;
+    transition: opacity .3s ease !important, transform .3s ease !important; transition-delay: 0s !important; }
+
+  /* --- pintu finis (transisi masuk game) --- */
+  .door { display: none; position: absolute; top: 0; bottom: 0; width: 51%; z-index: 1; will-change: transform;
+    background: linear-gradient(180deg, #1b2857 0%, #131d40 55%, #0c1330 100%); box-shadow: inset 0 0 120px rgba(0,0,0,.45); }
+  .door::after { content: ''; position: absolute; top: 0; bottom: 0; width: 26px; }
+  #doorL { left: 0; } #doorL::after { right: 0; }
+  #doorR { right: 0; } #doorR::after { left: 0; }
+  .door.closed { display: block; transition: none; transform: none; }
+  .door.open { transition: transform 1.05s cubic-bezier(.8, 0, .2, 1); }
+  #doorL.open { transform: translateX(-104%); }
+  #doorR.open { transform: translateX(104%); }
+
+  /* --- kilatan putih --- */
+  #flash { position: absolute; inset: 0; z-index: 5; background: #fff; opacity: 0; pointer-events: none; transition: opacity .55s ease; }
+  #flash.on { opacity: 1; transition: opacity .16s ease; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ld-logo, .t-main-in, .t-press { animation: none; }
+  }
+
+  /* ===================== HUD GAME ===================== */
+  #hud { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 12px; right: 12px; display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none; z-index: 10; }
+  .box { background: var(--panel); color: var(--hud); padding: 6px 12px; border-radius: 10px; font-size: 20px; line-height: 1.1; min-width: 70px; }
+  .box small { display: block; font-size: 11px; opacity: 0.75; margin-bottom: 2px; }
+
+  #bar { position: fixed; top: calc(70px + env(safe-area-inset-top, 0px)); left: 12px; right: 12px; height: 8px; background: var(--panel); border-radius: 4px; overflow: hidden; z-index: 10; pointer-events: none; }
+  #barFill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--go), var(--accent)); }
+
+  #overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #fff; z-index: 60; pointer-events: none; }
+  #big { font-size: clamp(48px, 12vw, 110px); text-shadow: 0 4px 0 rgba(0,0,0,.35), 0 0 30px rgba(0,0,0,.3); }
+  #sub { font-size: clamp(14px, 3.5vw, 20px); margin-top: 8px; text-shadow: 0 2px 4px rgba(0,0,0,.6); max-width: 90vw; }
+  #again { margin-top: 18px; pointer-events: auto; font-family: inherit; font-size: 18px; padding: 10px 22px; border: 0; border-radius: 12px; background: var(--accent); color: #1a1a1a; cursor: pointer; display: none; }
+  #again:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+  /* tombol panah */
+  #pad { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 10px; align-items: flex-end; z-index: 15; }
+  .ctrl { width: 68px; height: 68px; border-radius: 16px; border: 2px solid rgba(255,255,255,.25); background: var(--panel); color: #fff; display: grid; place-items: center; padding: 0; cursor: pointer; touch-action: none; transition: transform .06s, background .06s; }
+  .ctrl svg { width: 34px; height: 34px; }
+  .ctrl.on { background: var(--accent); color: #1a1a1a; border-color: var(--accent); transform: scale(0.94); }
+  .ctrl:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  #btnB { height: 56px; }
+
+  /* identitas studio */
+  #studio { position: fixed; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 10px; z-index: 15; pointer-events: none; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.5); }
+  #studio svg { width: 44px; height: 44px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); flex: none; }
+  #studio .name { font-size: 18px; line-height: 1; }
+  #studio .name small { display: block; font-size: 11px; opacity: .85; margin-top: 3px; }
+  @media (max-width: 420px) {
+    .ctrl { width: 58px; height: 58px; } #btnB { height: 48px; }
+    #studio svg { width: 34px; height: 34px; } #studio .name { font-size: 14px; }
+  }
+
+  /* HUD disembunyikan selama intro */
+  #hud, #bar, #pad, #studio { transition: opacity .6s ease; }
+  body.boot #hud, body.boot #bar, body.boot #pad, body.boot #studio { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body class="boot">
+
+<!-- logo studio dipakai bareng (loading + pojok kiri bawah) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="bdlogo" viewBox="0 0 48 48">
+    <rect x="2" y="2" width="44" height="44" rx="11" fill="#1d2b53"/>
+    <rect x="2" y="2" width="44" height="44" rx="11" fill="none" stroke="#ffd23f" stroke-width="2.5"/>
+    <rect x="10" y="26" width="6" height="12" rx="1.5" fill="#3ef08f"/>
+    <rect x="21" y="19" width="6" height="19" rx="1.5" fill="#3ef08f"/>
+    <rect x="32" y="11" width="6" height="27" rx="1.5" fill="#3ef08f"/>
+    <path d="M9 21 L39 9" stroke="#ffd23f" stroke-width="3.5" stroke-linecap="round"/>
+  </symbol>
+</svg>
+
+<!-- ===================== INTRO ===================== -->
+<div id="intro">
+  <!-- fase 1: loading -->
+  <div id="load">
+    <svg class="ld-logo" viewBox="0 0 48 48"><use href="#bdlogo"/></svg>
+    <div class="ld-name">BARDIV STUDIO</div>
+    <div class="ld-sub">memuat <b>Thunder Car</b></div>
+    <div class="ld-label" id="ldLabel">Loading</div>
+    <div class="ld-bar"><div class="ld-fill" id="ldFill"></div></div>
+    <div class="ld-row">
+      <span id="ldTip">Tips: Rem (S) sebelum masuk tikungan, gas saat keluar.</span>
+      <span id="ldPct">0%</span>
+    </div>
+    <div class="ld-checker checker-f"></div>
+  </div>
+
+  <!-- fase 2: layar judul -->
+  <div id="title">
+    <div class="t-top">
+      <div class="t-presents">BARDIV STUDIO MEMPERSEMBAHKAN</div>
+      <div class="t-kicker">Thunder</div>
+      <div class="t-main"><span class="t-main-in">Car</span></div>
+      <div class="t-flagline"><i class="ck checker-f"></i><i class="bar"></i><i class="ck checker-f"></i></div>
+      <div class="t-tag">Adu ngebut antar tikungan — salip mobil lain, raih garis finish.</div>
+    </div>
+    <div class="t-bottom"><div class="t-press" id="press">Tekan <span class="key">Enter</span> untuk mulai</div></div>
+    <div class="t-corner tr">© BarDiv Studio</div>
+  </div>
+
+  <!-- fase 3: pintu finis + kilatan -->
+  <div class="door" id="doorL"></div>
+  <div class="door" id="doorR"></div>
+  <div id="flash"></div>
+</div>
+
+<!-- ===================== GAME ===================== -->
+<div id="hud">
+  <div class="box"><small>Waktu</small><span id="time">0.00</span></div>
+  <div class="box"><small>Kecepatan</small><span id="speed">0</span> km/j</div>
+  <div class="box"><small>Disalip</small><span id="passed">0</span></div>
+  <div class="box"><small>Rekor</small><span id="best">-</span></div>
+</div>
+<div id="bar"><div id="barFill"></div></div>
+
+<div id="overlay">
+  <div id="big"></div>
+  <div id="sub"></div>
+  <button id="again">Main lagi</button>
+</div>
+
+<div id="pad">
+  <button class="ctrl" id="btnL" aria-label="Belok kiri">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </button>
+  <button class="ctrl" id="btnB" aria-label="Rem">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg>
+  </button>
+  <button class="ctrl" id="btnR" aria-label="Belok kanan">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+  </button>
+</div>
+
+<div id="studio" aria-label="BarDiv Studio">
+  <svg viewBox="0 0 48 48" aria-hidden="true"><use href="#bdlogo"/></svg>
+  <div class="name">BarDiv Studio<small>Thunder Car</small></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ===================== SETUP DASAR =====================
+const SKY = 0x87b7e8;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(SKY);
+scene.fog = new THREE.Fog(SKY, 60, 260);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.prepend(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xdff1ff, 0x3a6b2a, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(30, 60, 20);
+scene.add(sun);
+
+// ===================== LINTASAN BERKELOK =====================
+const ROAD_W = 10, HALF = ROAD_W / 2;
+const LANES = [-2.5, 0, 2.5];
+
+const pts = [];
+for (let i = 0; i <= 28; i++) {
+  const z = -i * 55;
+  const amp = THREE.MathUtils.clamp((i - 2) / 3, 0, 1); // awal lurus, lalu mulai belok
+  const x = amp * (Math.sin(i * 0.75) * 22 + Math.sin(i * 0.31) * 14);
+  pts.push(new THREE.Vector3(x, 0, z));
+}
+const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
+curve.arcLengthDivisions = 3000;
+const L = curve.getLength();
+const FINISH = L - 70;
+
+// posisi + arah jalan di jarak d
+function frameAt(d) {
+  const u = THREE.MathUtils.clamp(d / L, 0, 1);
+  const p = curve.getPointAt(u);
+  const t = curve.getTangentAt(u);
+  const r = new THREE.Vector3(-t.z, 0, t.x).normalize(); // arah kanan
+  return { p, t, r };
+}
+
+// bikin pita (strip) mengikuti jalan dari jarak d0..d1, offset lateral o0..o1
+function ribbon(d0, d1, o0, o1, y, step, pos, idx) {
+  const n = Math.max(1, Math.ceil((d1 - d0) / step));
+  const base = pos.length / 3;
+  for (let k = 0; k <= n; k++) {
+    const { p, r } = frameAt(d0 + (d1 - d0) * k / n);
+    pos.push(p.x + r.x * o0, y, p.z + r.z * o0, p.x + r.x * o1, y, p.z + r.z * o1);
+  }
+  for (let k = 0; k < n; k++) {
+    const a = base + k * 2;
+    idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+}
+function meshFrom(pos, idx, mat) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return new THREE.Mesh(g, mat);
+}
+const flat = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, side: THREE.DoubleSide });
+
+// --- dibangun bertahap saat loading ---
+function buildTrack() {
+  // rumput
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ color: 0x4f8f3a, roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(0, -0.02, -L / 2);
+  scene.add(ground);
+
+  // aspal
+  { const p = [], i = []; ribbon(0, L, -HALF, HALF, 0.0, 1.5, p, i); scene.add(meshFrom(p, i, flat(0x34363b))); }
+  // garis tepi putih
+  { const p = [], i = [];
+    ribbon(0, L, -HALF + 0.25, -HALF + 0.45, 0.02, 1.5, p, i);
+    ribbon(0, L, HALF - 0.45, HALF - 0.25, 0.02, 1.5, p, i);
+    scene.add(meshFrom(p, i, flat(0xf2f2f2))); }
+  // garis putus-putus antar jalur
+  { const p = [], i = [];
+    for (let d = 0; d < L; d += 8) {
+      ribbon(d, Math.min(d + 3.5, L), -1.33, -1.17, 0.02, 1, p, i);
+      ribbon(d, Math.min(d + 3.5, L), 1.17, 1.33, 0.02, 1, p, i);
+    }
+    scene.add(meshFrom(p, i, flat(0xf2f2f2))); }
+  // kerb merah-putih di pinggir
+  { const pr = [], ir = [], pw = [], iw = [];
+    let red = true;
+    for (let d = 0; d < L; d += 2) {
+      const e = Math.min(d + 2, L);
+      const [P, I] = red ? [pr, ir] : [pw, iw];
+      ribbon(d, e, -HALF - 0.9, -HALF, 0.015, 1, P, I);
+      ribbon(d, e, HALF, HALF + 0.9, 0.015, 1, P, I);
+      red = !red;
+    }
+    scene.add(meshFrom(pr, ir, flat(0xd93636)));
+    scene.add(meshFrom(pw, iw, flat(0xf5f5f5))); }
+}
+
+function buildTrees() {
+  const trunkG = new THREE.CylinderGeometry(0.25, 0.32, 1.6, 6);
+  const leafG = new THREE.ConeGeometry(1.6, 3.8, 7);
+  const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 1 });
+  const leafMs = [0x2f7a32, 0x3b8f3c, 0x276b2b].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+  for (let d = 0; d < L; d += 10) {
+    for (const side of [-1, 1]) {
+      if (Math.random() < 0.25) continue;
+      const { p, r } = frameAt(d + Math.random() * 6);
+      const off = side * (HALF + 4 + Math.random() * 12);
+      const tree = new THREE.Group();
+      const trunk = new THREE.Mesh(trunkG, trunkM); trunk.position.y = 0.8;
+      const leaf = new THREE.Mesh(leafG, leafMs[(Math.random() * 3) | 0]); leaf.position.y = 3.3;
+      tree.add(trunk, leaf);
+      const s = 0.8 + Math.random() * 0.7;
+      tree.scale.setScalar(s);
+      tree.position.set(p.x + r.x * off, 0, p.z + r.z * off);
+      scene.add(tree);
+    }
+  }
+}
+
+// ===================== GARIS FINISH =====================
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.anisotropy = 4;
+  return t;
+}
+function buildFinish() {
+  const { p, t } = frameAt(FINISH);
+  const g = new THREE.Group();
+  g.position.copy(p);
+  g.lookAt(p.clone().add(t));
+
+  const checker = canvasTex(320, 64, (ctx, w, h) => {
+    const s = 32;
+    for (let y = 0; y < h / s; y++) for (let x = 0; x < w / s; x++) {
+      ctx.fillStyle = (x + y) % 2 ? '#111' : '#fff';
+      ctx.fillRect(x * s, y * s, s, s);
+    }
+  });
+  const line = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, 2), new THREE.MeshStandardMaterial({ map: checker, roughness: 0.8 }));
+  line.rotation.x = -Math.PI / 2;
+  line.position.y = 0.03;
+  g.add(line);
+
+  const postG = new THREE.BoxGeometry(0.5, 7, 0.5);
+  const postM = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+  for (const sx of [-1, 1]) {
+    const post = new THREE.Mesh(postG, postM);
+    post.position.set(sx * (HALF + 1.2), 3.5, 0);
+    g.add(post);
+  }
+  const bannerTex = canvasTex(1024, 160, (ctx, w, h) => {
+    const s = 20;
+    for (let y = 0; y < h / s; y++) for (let x = 0; x < w / s; x++) {
+      if (y > 0 && y < h / s - 1) continue;
+      ctx.fillStyle = (x + y) % 2 ? '#111' : '#fff';
+      ctx.fillRect(x * s, y * s, s, s);
+    }
+    ctx.fillStyle = '#d92b2b'; ctx.fillRect(0, s, w, h - 2 * s);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 96px "Arial Black", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('FINISH', w / 2, h / 2 + 4);
+  });
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W + 3, 2), new THREE.MeshBasicMaterial({ map: bannerTex, side: THREE.DoubleSide }));
+  banner.position.set(0, 6.2, 0);
+  banner.rotation.y = Math.PI; // menghadap ke arah datangnya pemain
+  g.add(banner);
+  scene.add(g);
+}
+
+// ===================== MODEL MOBIL =====================
+const carGeo = {
+  body: new THREE.BoxGeometry(1.7, 0.55, 3.4),
+  hood: new THREE.BoxGeometry(1.6, 0.12, 1.0),
+  cabin: new THREE.BoxGeometry(1.42, 0.5, 1.7),
+  roof: new THREE.BoxGeometry(1.46, 0.08, 1.45),
+  wheel: (() => { const g = new THREE.CylinderGeometry(0.38, 0.38, 0.32, 16); g.rotateZ(Math.PI / 2); return g; })(),
+  hub: (() => { const g = new THREE.BoxGeometry(0.34, 0.5, 0.12); return g; })(),
+  lamp: new THREE.BoxGeometry(0.38, 0.16, 0.06),
+  wing: new THREE.BoxGeometry(1.6, 0.07, 0.42),
+  strut: new THREE.BoxGeometry(0.08, 0.3, 0.12),
+};
+const carMat = {
+  glass: new THREE.MeshStandardMaterial({ color: 0x1c2b3d, metalness: 0.5, roughness: 0.15 }),
+  tire: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 }),
+  hub: new THREE.MeshStandardMaterial({ color: 0xbfbfbf, metalness: 0.7, roughness: 0.3 }),
+  head: new THREE.MeshStandardMaterial({ color: 0xfff6c0, emissive: 0xfff0a0, emissiveIntensity: 0.9 }),
+  tail: new THREE.MeshStandardMaterial({ color: 0xff2a2a, emissive: 0xff1010, emissiveIntensity: 0.8 }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 }),
+};
+const paintCache = {};
+function paint(color) {
+  return paintCache[color] || (paintCache[color] = new THREE.MeshStandardMaterial({ color, metalness: 0.35, roughness: 0.35 }));
+}
+// depan mobil = +z lokal (biar cocok dengan lookAt)
+function makeCar(color, sporty) {
+  const car = new THREE.Group();
+  const pm = paint(color);
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); car.add(m); return m; };
+
+  add(carGeo.body, pm, 0, 0.62, 0);
+  add(carGeo.hood, pm, 0, 0.95, 1.05);
+  add(carGeo.cabin, carMat.glass, 0, 1.13, -0.25);
+  add(carGeo.roof, pm, 0, 1.42, -0.3);
+
+  for (const sx of [-1, 1]) {
+    add(carGeo.lamp, carMat.head, sx * 0.55, 0.7, 1.71);
+    add(carGeo.lamp, carMat.tail, sx * 0.55, 0.72, -1.71);
+  }
+  const wheels = [];
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const w = new THREE.Group();
+    w.add(new THREE.Mesh(carGeo.wheel, carMat.tire));
+    const hub = new THREE.Mesh(carGeo.hub, carMat.hub); hub.position.x = sx * 0.12; hub.rotation.y = Math.PI / 2;
+    w.add(hub);
+    w.position.set(sx * 0.82, 0.38, sz * 1.15);
+    car.add(w);
+    wheels.push(w);
+  }
+  if (sporty) {
+    add(carGeo.wing, carMat.dark, 0, 1.2, -1.5);
+    add(carGeo.strut, carMat.dark, -0.55, 1.02, -1.5);
+    add(carGeo.strut, carMat.dark, 0.55, 1.02, -1.5);
+  }
+  car.userData.wheels = wheels;
+  return car;
+}
+
+function placeOnRoad(obj, dist, lat, yaw = 0) {
+  const { p, t, r } = frameAt(dist);
+  obj.position.copy(p).addScaledVector(r, lat);
+  obj.lookAt(obj.position.clone().add(t));
+  if (yaw) obj.rotateY(yaw);
+}
+function spinWheels(car, speed, dt) {
+  for (const w of car.userData.wheels) w.rotation.x += speed * dt / 0.38;
+}
+
+// ===================== PEMAIN & LALU LINTAS =====================
+const player = { mesh: null, dist: 0, lat: 0, speed: 0, steer: 0 }; // mobil dibikin pas loading
+
+const TRAFFIC_COLORS = [0xff3b3b, 0xff8c1a, 0x3b82f6, 0xa855f7, 0xf2f2f2, 0xffd23f];
+const LANE_SPEED = [9, 11.5, 14]; // satu jalur satu kecepatan, biar ga saling tumpuk
+const traffic = [];
+
+function buildTraffic() {
+  traffic.forEach(o => scene.remove(o.mesh));
+  traffic.length = 0;
+  let d = 70;
+  while (d < FINISH - 30) {
+    const lanes = [0, 1, 2].sort(() => Math.random() - 0.5);
+    const count = Math.random() < 0.35 ? 2 : 1; // selalu ada satu jalur kosong
+    for (let k = 0; k < count; k++) {
+      const li = lanes[k];
+      const color = TRAFFIC_COLORS[(Math.random() * TRAFFIC_COLORS.length) | 0];
+      const o = { mesh: makeCar(color, false), dist: d + k * 4, lat: LANES[li], speed: LANE_SPEED[li], passed: false };
+      placeOnRoad(o.mesh, o.dist, o.lat);
+      scene.add(o.mesh);
+      traffic.push(o);
+    }
+    d += 30 + Math.random() * 28;
+  }
+}
+
+// pasang mobil pemain + grid lalu lintas (dipanggil pas loading)
+function setupGrid() {
+  player.mesh = makeCar(0x00e08a, true);
+  scene.add(player.mesh);
+  placeOnRoad(player.mesh, player.dist, player.lat);
+  buildTraffic();
+}
+
+// ===================== HUD & STATE =====================
+const $ = id => document.getElementById(id);
+const ui = {
+  time: $('time'), speed: $('speed'), passed: $('passed'), best: $('best'),
+  bar: $('barFill'), big: $('big'), sub: $('sub'), again: $('again'),
+  ldFill: $('ldFill'), ldPct: $('ldPct'), ldLabel: $('ldLabel'), ldTip: $('ldTip'),
+};
+
+let state = 'title', countdown = 3, raceTime = 0, passedCount = 0;
+const MAX_SPEED = 42, BRAKE_MIN = 6;
+
+function loadBest() { try { const v = localStorage.getItem('balapTikunganBest'); return v ? parseFloat(v) : null; } catch (e) { return null; } }
+function saveBest(v) { try { localStorage.setItem('balapTikunganBest', String(v)); } catch (e) {} }
+let best = loadBest();
+ui.best.textContent = best ? best.toFixed(2) : '-';
+
+function showOverlay(big, sub, color, showBtn) {
+  ui.big.textContent = big; ui.big.style.color = color || '#fff';
+  ui.sub.textContent = sub || '';
+  ui.again.style.display = showBtn ? 'inline-block' : 'none';
+}
+
+const camLook = new THREE.Vector3();
+function snapCamera() {
+  const back = frameAt(player.dist - 9);
+  camera.position.copy(back.p).addScaledVector(back.r, player.lat * 0.6); camera.position.y = 4.5;
+  camLook.copy(frameAt(player.dist + 12).p); camLook.y = 1;
+  camera.lookAt(camLook);
+}
+
+function beginCountdown() {
+  introState = 'done';
+  document.body.classList.remove('boot'); // HUD & tombol muncul
+  countdown = 3;
+  state = 'countdown';
+  showOverlay('3', HINT, '#fff', false);
+}
+
+function resetGame() {
+  player.dist = 0; player.lat = 0; player.speed = 0; player.steer = 0;
+  player.mesh.rotation.set(0, 0, 0);
+  placeOnRoad(player.mesh, player.dist, player.lat);
+  buildTraffic();
+  raceTime = 0; passedCount = 0;
+  ui.passed.textContent = '0';
+  beginCountdown();
+  snapCamera();
+}
+
+// ===================== INTRO: LOADING & JUDUL =====================
+let introState = 'loading';
+
+const introEl = $('intro'), loadEl = $('load'), titleEl = $('title'), flashEl = $('flash');
+const doorL = $('doorL'), doorR = $('doorR');
+const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+const HINT = isTouch ? 'Pakai tombol panah di kanan bawah buat belok & rem' : 'Kiri/Kanan (A/D) buat belok, Bawah (S) buat ngerem';
+if (isTouch) $('press').textContent = '— Ketuk layar untuk mulai —';
+
+const TIPS = [
+  'Tips: Rem (S) sebelum masuk tikungan, gas saat keluar.',
+  'Tips: Selalu ada satu jalur kosong — cari celahnya.',
+  'Tips: Mobil di jalur kiri paling lambat, jalur kanan paling ngebut.',
+  'Tips: Rekor terbaikmu tersimpan otomatis di perangkat.',
+  'Tips: Kalau nabrak, tekan Spasi / R buat balapan ulang.',
+];
+
+// loading beneran per langkah (bukannya pura-pura), biar progresnya jujur
+const loadSteps = [
+  ['Membangun lintasan', buildTrack],
+  ['Menanam pohon pinggir jalan', buildTrees],
+  ['Memasang gerbang finish', buildFinish],
+  ['Menyerikan mobil di grid start', setupGrid],
+  ['Memanaskan mesin', warmupShaders],
+];
+let loadIdx = 0, loadShown = 0, loadTarget = 0, tipIdx = 0, tipTimer = 3;
+
+function warmupShaders() {
+  renderer.compile(scene, camera); // pre-compile shader biar nggak nge-lag pas GO
+  renderer.render(scene, camera);
+}
+
+function tickLoading(dt) {
+  loadShown += (loadTarget - loadShown) * Math.min(1, 3.5 * dt);
+  ui.ldFill.style.width = (loadShown * 100).toFixed(1) + '%';
+  ui.ldPct.textContent = Math.round(loadShown * 100) + '%';
+  tipTimer -= dt;
+  if (tipTimer <= 0) {
+    tipTimer = 2.9;
+    tipIdx = (tipIdx + 1) % TIPS.length;
+    ui.ldTip.style.opacity = '0';
+    setTimeout(() => { ui.ldTip.textContent = TIPS[tipIdx]; ui.ldTip.style.opacity = '1'; }, 300);
+  }
+}
+
+function runNextStep() {
+  if (loadIdx >= loadSteps.length) { finishLoading(); return; }
+  const [label, fn] = loadSteps[loadIdx];
+  ui.ldLabel.textContent = label + '…';
+  requestAnimationFrame(() => {
+    fn();
+    loadIdx++;
+    loadTarget = loadIdx / loadSteps.length;
+    setTimeout(runNextStep, 140 + Math.random() * 260); // jeda kecil biar bar geraknya per "dekak"
+  });
+}
+
+function finishLoading() {
+  ui.ldLabel.textContent = 'Siap balap!';
+  const iv = setInterval(() => {
+    if (loadShown >= 0.995) {
+      clearInterval(iv);
+      loadShown = 1;
+      ui.ldFill.style.width = '100%';
+      ui.ldPct.textContent = '100%';
+      setTimeout(() => {
+        loadEl.classList.add('hide');
+        setTimeout(() => { loadEl.style.display = 'none'; }, 700);
+        showTitle();
+      }, 420);
+    }
+  }, 40);
+}
+
+function showTitle() {
+  introState = 'title';
+  titleEl.classList.add('show');
+}
+
+// --- kamera sinematik layar judul: drone melayang di atas lintasan (bolak-balik) ---
+const cine = { t: Math.random() * 40, init: false };
+function updateCinematic(dt) {
+  cine.t += dt;
+  const tri = 1 - Math.abs((cine.t * 0.045) % 2 - 1); // 0 → 1 → 0, biar nggak lompat
+  const d = 25 + tri * 135;
+  const { p, r } = frameAt(d);
+  const target = p.clone().addScaledVector(r, -13 + Math.sin(cine.t * 0.25) * 4);
+  target.y = 9.5 + Math.sin(cine.t * 0.16) * 2.5;
+  const look = frameAt(d + 38).p; look.y = 0.5;
+  if (!cine.init) { camera.position.copy(target); camLook.copy(look); cine.init = true; }
+  const k = 1 - Math.exp(-2.2 * dt);
+  camera.position.lerp(target, k);
+  camLook.lerp(look, k);
+  camera.lookAt(camLook);
+}
+
+// --- transisi masuk: kamera menukik dari drone ke belakang mobil ---
+let enterK = -1, enterDur = 1.6;
+const enterFromPos = new THREE.Vector3(), enterFromLook = new THREE.Vector3();
+function startCameraTween(dur) {
+  enterDur = dur; enterK = 0;
+  enterFromPos.copy(camera.position);
+  enterFromLook.copy(camLook);
+}
+function easeInOut(x) { return x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; }
+function updateEnterTween(dt) {
+  if (enterK < 0) { updateCinematic(dt); return; } // kamera tetap melayang sampai pintu mulai buka
+  enterK = Math.min(1, enterK + dt / enterDur);
+  const e = easeInOut(enterK);
+  const back = frameAt(player.dist - 9);
+  const toPos = back.p.clone().addScaledVector(back.r, player.lat * 0.6); toPos.y = 4.5;
+  const toLook = frameAt(player.dist + 12).p.clone(); toLook.y = 1;
+  camera.position.lerpVectors(enterFromPos, toPos, e);
+  camera.position.y += Math.sin(e * Math.PI) * 3.5; // busur kecil biar nggak nyeruduk pohon
+  camLook.lerpVectors(enterFromLook, toLook, e);
+  camera.lookAt(camLook);
+  if (enterK >= 1) { enterK = -1; beginCountdown(); } // kamera mendarat → hitungan mulai
+}
+
+function pressStart() {
+  if (introState !== 'title') return;
+  introState = 'entering';
+  chime();
+  titleEl.classList.add('leave');
+  setTimeout(() => flashEl.classList.add('on'), 160);              // kilatan naik
+  setTimeout(() => {                                               // di balik kilatan: judul → pintu tertutup
+    titleEl.style.display = 'none';
+    doorL.classList.add('closed'); doorR.classList.add('closed');
+    flashEl.classList.remove('on');                                // kilatan turun, pintu kelihatan
+  }, 430);
+  setTimeout(() => {                                               // pintu finis terbuka + kamera menukik
+    doorL.classList.add('open'); doorR.classList.add('open');
+    startCameraTween(1.6);
+  }, 980);
+  setTimeout(() => { introEl.style.display = 'none'; }, 2100);
+}
+
+// --- bunyi "mulai" pakai WebAudio, tanpa file ---
+let AC = null;
+function chime() {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === 'suspended') AC.resume();
+    const t0 = AC.currentTime;
+    const note = (f, at, dur, vol) => {
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + at);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
+      o.connect(g); g.connect(AC.destination);
+      o.start(t0 + at); o.stop(t0 + at + dur + 0.05);
+    };
+    note(880, 0, .35, .10);
+    note(1174.7, .09, .5, .10);
+    note(1760, .18, .7, .06);
+  } catch (e) {}
+}
+
+// ===================== KONTROL =====================
+const keys = { left: false, right: false, brake: false };
+window.addEventListener('keydown', e => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+  if (e.code === 'ArrowDown' || e.code === 'KeyS') keys.brake = true;
+  if (e.code === 'Enter') pressStart();
+  if ((e.code === 'Space' || e.code === 'KeyR' || e.code === 'Enter') && (state === 'crash' || state === 'finish')) resetGame();
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+  if (e.code === 'ArrowDown' || e.code === 'KeyS') keys.brake = false;
+});
+function holdButton(el, key) {
+  const on = e => { e.preventDefault(); keys[key] = true; };
+  const off = () => { keys[key] = false; };
+  el.addEventListener('pointerdown', on);
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => el.addEventListener(ev, off));
+}
+const btnL = $('btnL'), btnR = $('btnR'), btnB = $('btnB');
+holdButton(btnL, 'left');
+holdButton(btnR, 'right');
+holdButton(btnB, 'brake');
+ui.again.addEventListener('click', resetGame);
+titleEl.addEventListener('pointerup', pressStart); // di HP: ketuk layar buat mulai
+
+// ===================== LOOP UTAMA =====================
+const clock = new THREE.Clock();
+
+function update(dt) {
+  // intro dulu: loading → judul → transisi masuk
+  if (introState === 'loading') { tickLoading(dt); return; }
+  if (introState === 'title') { updateCinematic(dt); return; }
+  if (introState === 'entering') { updateEnterTween(dt); return; }
+
+  if (state === 'countdown') {
+    countdown -= dt;
+    if (countdown > 0) ui.big.textContent = Math.ceil(countdown);
+    else { state = 'race'; showOverlay('GO!', '', 'var(--go)', false); setTimeout(() => { if (state === 'race') showOverlay('', ''); }, 700); }
+  }
+
+  if (state === 'race') {
+    raceTime += dt;
+    // gas otomatis, rem manual
+    if (keys.brake) player.speed = Math.max(BRAKE_MIN, player.speed - 30 * dt);
+    else player.speed = Math.min(MAX_SPEED, player.speed + (player.speed < 20 ? 14 : 5) * dt);
+
+    const target = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    player.steer += (target - player.steer) * Math.min(1, 10 * dt);
+    player.lat = THREE.MathUtils.clamp(player.lat + player.steer * 9 * dt, -HALF + 1, HALF - 1);
+    player.dist += player.speed * dt;
+
+    if (player.dist >= FINISH) {
+      state = 'finish';
+      const isBest = !best || raceTime < best;
+      if (isBest) { best = raceTime; saveBest(best); ui.best.textContent = best.toFixed(2); }
+      showOverlay('FINISH!', `Waktu ${raceTime.toFixed(2)} detik, nyalip ${passedCount} mobil${isBest ? ' — rekor baru!' : ''}. Spasi / Enter buat main lagi.`, 'var(--accent)', true);
+    }
+  } else if (state === 'finish') {
+    // pelan-pelan berhenti setelah lewat finish
+    player.speed = Math.max(0, player.speed - 18 * dt);
+    player.steer *= 0.9;
+    player.dist = Math.min(player.dist + player.speed * dt, L - 20);
+  }
+
+  // lalu lintas (diam di grid sampai GO, baru jalan)
+  if (state !== 'crash') {
+    const moving = (state === 'race' || state === 'finish');
+    for (const o of traffic) {
+      if (moving) o.dist += o.speed * dt;
+      if (o.dist > L - 8) { o.mesh.visible = false; continue; }
+      placeOnRoad(o.mesh, o.dist, o.lat);
+      if (moving) spinWheels(o.mesh, o.speed, dt);
+
+      if (state === 'race') {
+        const dd = o.dist - player.dist;
+        if (Math.abs(dd) < 3.3 && Math.abs(o.lat - player.lat) < 1.6) {
+          state = 'crash';
+          player.mesh.rotateY(0.5);
+          showOverlay('NABRAK!', `Sampai ${Math.round(player.dist / FINISH * 100)}% lintasan. Spasi / Enter buat main lagi.`, 'var(--danger)', true);
+          break;
+        }
+        if (!o.passed && dd < -3.5) { o.passed = true; passedCount++; ui.passed.textContent = passedCount; }
+      }
+    }
+  }
+
+  if (state !== 'crash') {
+    placeOnRoad(player.mesh, player.dist, player.lat, -player.steer * 0.15);
+    spinWheels(player.mesh, player.speed, dt);
+  }
+
+  // kamera ngikutin dari belakang
+  const back = frameAt(player.dist - 9);
+  const desired = back.p.clone().addScaledVector(back.r, player.lat * 0.6); desired.y = 4.5;
+  const k = 1 - Math.exp(-5 * dt);
+  camera.position.lerp(desired, k);
+  const ahead = frameAt(player.dist + 12).p; ahead.y = 1;
+  camLook.lerp(ahead, k);
+  camera.lookAt(camLook);
+
+  // tombol panah ikut nyala walau pakai keyboard
+  btnL.classList.toggle('on', keys.left);
+  btnR.classList.toggle('on', keys.right);
+  btnB.classList.toggle('on', keys.brake);
+
+  // HUD
+  ui.time.textContent = raceTime.toFixed(2);
+  ui.speed.textContent = Math.round(player.speed * 4.5);
+  ui.bar.style.width = Math.min(100, player.dist / FINISH * 100) + '%';
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  update(dt);
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+runNextStep(); // mulai loading
+animate();
+</script>
+</body>
+</html>
